@@ -79,11 +79,11 @@ class RealGitHubEndpoint(ghstack.github.GitHubEndpoint):
         if self.oauth_token:
             headers["Authorization"] = "bearer {}".format(self.oauth_token)
 
-        logging.debug(
+        logging.info(
             "# POST {}".format(self.graphql_endpoint.format(github_url=self.github_url))
         )
-        logging.debug("Request GraphQL query:\n{}".format(query))
-        logging.debug(
+        logging.info("Request GraphQL query:\n{}".format(query))
+        logging.info(
             "Request GraphQL variables:\n{}".format(json.dumps(kwargs, indent=1))
         )
 
@@ -96,16 +96,16 @@ class RealGitHubEndpoint(ghstack.github.GitHubEndpoint):
             cert=self.cert,
         )
 
-        logging.debug("Response status: {}".format(resp.status_code))
+        logging.info("Response status: {}".format(resp.status_code))
 
         try:
             r = resp.json()
         except ValueError:
-            logging.debug("Response body:\n{}".format(resp.text))
+            logging.info("Response body:\n{}".format(resp.text))
             raise
         else:
             pretty_json = json.dumps(r, indent=1)
-            logging.debug("Response JSON:\n{}".format(pretty_json))
+            logging.info("Response JSON:\n{}".format(pretty_json))
 
         # Actually, this code is dead on the GitHub GraphQL API, because
         # they seem to always return 200, even in error case (as of
@@ -140,7 +140,7 @@ class RealGitHubEndpoint(ghstack.github.GitHubEndpoint):
                 verify=self.verify,
                 cert=self.cert,
             )
-            logging.debug("Response status: {}".format(resp.status_code))
+            logging.info("Response status: {}".format(resp.status_code))
 
             r = resp.text
             if m := re.search(r'<clipboard-copy.+?value="(gh/[^/]+/\d+/head)"', r):
@@ -162,8 +162,8 @@ class RealGitHubEndpoint(ghstack.github.GitHubEndpoint):
 
         backoff_seconds = INITIAL_BACKOFF_SECONDS
         for attempt in range(0, MAX_RETRIES):
-            logging.debug("# {} {}".format(method, url))
-            logging.debug("Request body:\n{}".format(json.dumps(kwargs, indent=1)))
+            logging.info("# {} {}".format(method, url))
+            logging.info("Request body:\n{}".format(json.dumps(kwargs, indent=1)))
 
             resp: requests.Response = getattr(requests, method)(
                 url,
@@ -174,19 +174,22 @@ class RealGitHubEndpoint(ghstack.github.GitHubEndpoint):
                 cert=self.cert,
             )
 
-            logging.debug("Response status: {}".format(resp.status_code))
+            logging.info("Response status: {}".format(resp.status_code))
 
             try:
                 r = resp.json()
             except ValueError:
-                logging.debug("Response body:\n{}".format(r.text))
+                logging.info("Response body:\n{}".format(r.text))
                 raise
             else:
                 pretty_json = json.dumps(r, indent=1)
-                logging.debug("Response JSON:\n{}".format(pretty_json))
+                logging.info("Response JSON:\n{}".format(pretty_json))
 
             # Per Github rate limiting: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28#exceeding-the-rate-limit
             if resp.status_code in (403, 429):
+                # log the error
+                logging.error(f"Rate limit exceeded. Error: {pretty_json}")
+
                 remaining_count = resp.headers.get("x-ratelimit-remaining")
                 reset_time = resp.headers.get("x-ratelimit-reset")
 
